@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Result</title>
+</head>
+<body>
+
+<h2>Search Result</h2>
+
+{% if person %}
+Name: {{ person[0] }} <br>
+Age: {{ person[1] }} <br>
+Gender: {{ person[2] }}
+{% else %}
+Person not found
+{% endif %}
+
+</body>
+</html>
