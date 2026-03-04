@@ -1,57 +1,61 @@
-from flask import Flask, request, render_template_string
-from sklearn.datasets import load_iris
-import pandas as pd
+from flask import Flask, render_template, request
+import psycopg2
+import os
 
 app = Flask(__name__)
 
-# Load dataset
-iris = load_iris()
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-df = pd.DataFrame(iris.data, columns=iris.feature_names)
-df["species"] = iris.target
-df["species"] = df["species"].apply(lambda x: iris.target_names[x])
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
 
-HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-<title>Iris Dataset Viewer</title>
-</head>
-<body>
-
-<h2>Iris Dataset Filter</h2>
-
-<form method="POST">
-    Enter Species:
-    <input type="text" name="species" placeholder="setosa / versicolor / virginica">
-    <input type="submit" value="Search">
-</form>
-
-{% if tables %}
-<h3>Results</h3>
-{{ tables|safe }}
-{% endif %}
-
-</body>
-</html>
-"""
-
-@app.route("/", methods=["GET","POST"])
+@app.route("/")
 def home():
+    return render_template("index.html")
 
-    tables = None
+@app.route("/add", methods=["POST"])
+def add_person():
+    name = request.form["name"]
+    age = request.form["age"]
+    gender = request.form["gender"]
 
-    if request.method == "POST":
-        species = request.form.get("species").lower()
+    conn = get_db_connection()
+    cur = conn.cursor()
 
-        filtered = df[df["species"] == species]
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS people (
+            id SERIAL PRIMARY KEY,
+            name TEXT,
+            age INTEGER,
+            gender TEXT
+        )
+    """)
 
-        if not filtered.empty:
-            tables = filtered.to_html()
-        else:
-            tables = "<p>No results found</p>"
+    cur.execute(
+        "INSERT INTO people (name, age, gender) VALUES (%s, %s, %s)",
+        (name, age, gender)
+    )
 
-    return render_template_string(HTML, tables=tables)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return "Person added successfully!"
+
+@app.route("/search", methods=["POST"])
+def search():
+    name = request.form["name"]
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT name, age, gender FROM people WHERE name=%s", (name,))
+    result = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return render_template("result.html", person=result)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)
